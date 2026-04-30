@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aptri-voice"
+version = "0.1.0"
+description = "Push-to-talk speech-to-text for Windows using Whisper large-v3-turbo."
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "torch>=2.4",
+    "transformers>=4.45",
+    "accelerate>=0.34",
+    "huggingface_hub>=0.25",
+    "keyboard>=0.13.5",
+    "sounddevice>=0.4.6",
+    "numpy>=1.26,<3",
+    "scipy>=1.11",
+    "pywin32>=306",
+    "pystray>=0.19",
+    "Pillow>=10",
+]
+
+[project.scripts]
+aptri-voice = "aptri_voice.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["aptri_voice*"]

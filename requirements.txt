@@ -1,0 +1,11 @@
+torch>=2.4
+transformers>=4.45
+accelerate>=0.34
+huggingface_hub>=0.25
+keyboard>=0.13.5
+sounddevice>=0.4.6
+numpy>=1.26,<3
+scipy>=1.11
+pywin32>=306
+pystray>=0.19
+Pillow>=10
