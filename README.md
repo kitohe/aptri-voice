@@ -4,35 +4,57 @@
 
 # aptri-voice
 
-Push-to-talk speech-to-text for Windows. Hold a hotkey, speak, release — text is typed into whatever window is focused. Uses [`openai/whisper-large-v3-turbo`](https://huggingface.co/openai/whisper-large-v3-turbo) loaded directly via Hugging Face `transformers`, with CUDA fp16 acceleration on NVIDIA GPUs and a CPU fp32 fallback.
+Push-to-talk speech-to-text. Hold a hotkey, speak, release — text is typed into whatever window is focused. Uses [`whisper-large-v3-turbo`](https://huggingface.co/openai/whisper-large-v3-turbo) with three backends:
+
+- **CUDA fp16** via Hugging Face `transformers` (NVIDIA GPU)
+- **MLX fp16** via [`mlx-whisper`](https://github.com/ml-explore/mlx-examples/tree/main/whisper) (Apple Silicon)
+- **CPU fp32** via `transformers` (universal fallback)
+
+The hotkey/tray/injector layer is currently Windows-only (Win32 LL hook + `SendInput`). The transcription core works on macOS arm64 today; the input-injection port to macOS is a separate piece of work.
 
 ## Requirements
 
-- Windows 10/11
-- **Python 3.12** (3.11 also works). **3.13 and 3.14 are not yet supported** — there are no CUDA wheels for them on the PyTorch / CTranslate2 indexes as of writing.
-- Optional but recommended: NVIDIA GPU with ≥6 GB VRAM. RTX 3070 Ti / 8 GB is plenty (the transformers fp16 path uses ~3.5–5 GB at runtime). **CPU-only also works** — transcription is just slower (a 5 s clip takes a few seconds on a modern desktop CPU instead of being near-instant on a GPU).
+- Windows 10/11 **or** macOS 14+ on Apple Silicon (arm64). Linux works for transcription but lacks the hotkey/injector layer.
+- **Python 3.11 or 3.12.** 3.13/3.14 are not yet supported (no CUDA / MLX wheels).
+- Optional NVIDIA GPU with ≥6 GB VRAM (the transformers fp16 path uses ~3.5–5 GB at runtime). On Apple Silicon the MLX path uses ~2 GB unified memory and runs at 5–10× CPU PyTorch speed.
 - A working microphone.
 
 ## Setup
+
+### Windows
 
 ```bat
 setup.bat
 ```
 
-This creates `.venv` with Python 3.12, auto-detects whether you have an NVIDIA GPU (via `nvidia-smi`) and installs the matching PyTorch build (CUDA 12.4 if a GPU is present, CPU-only otherwise), then installs all other dependencies and pre-downloads the Whisper model (~1.6 GB into `%USERPROFILE%\.cache\huggingface`).
+Creates `.venv` with Python 3.12, auto-detects an NVIDIA GPU (via `nvidia-smi`) and installs the matching PyTorch build (CUDA 12.4 / CPU), installs the rest, and pre-downloads `openai/whisper-large-v3-turbo` (~1.6 GB).
 
-If you'd rather do it by hand:
+### macOS (Apple Silicon)
 
-```bat
-py -3.12 -m venv .venv
-.venv\Scripts\activate
+```bash
+./setup.sh
+```
 
-REM Pick ONE torch install line:
-pip install torch --index-url https://download.pytorch.org/whl/cu124   :: NVIDIA GPU
-pip install torch --index-url https://download.pytorch.org/whl/cpu     :: CPU-only
+Detects arm64, installs the `[mlx]` extra (`mlx-whisper`), and pre-downloads `mlx-community/whisper-large-v3-turbo`. Requires macOS 14 (Sonoma) and an arm64-native Python (Rosetta Python silently has no MLX wheel).
 
-pip install -r requirements.txt
-huggingface-cli download openai/whisper-large-v3-turbo
+### Manual
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate     macOS/Linux: source .venv/bin/activate
+
+# Pick the right torch line for your platform:
+pip install torch --index-url https://download.pytorch.org/whl/cu124   # NVIDIA GPU
+pip install torch --index-url https://download.pytorch.org/whl/cpu     # CPU-only
+
+# On Apple Silicon also:
+pip install -e ".[mlx]"
+
+# Otherwise:
+pip install -e .
+
+huggingface-cli download openai/whisper-large-v3-turbo            # torch backends
+huggingface-cli download mlx-community/whisper-large-v3-turbo     # MLX backend
 ```
 
 ## Run
@@ -55,13 +77,14 @@ python -m aptri_voice --hotkey "win+space" --suppress-hotkey
 ### Useful flags
 
 ```
---hotkey "ctrl+alt+space"   # any keyboard-lib combo
---suppress-hotkey           # swallow it from the OS (needed for win+space)
---language en               # skip auto-detect (faster, more reliable on short clips)
---device-mode auto|cuda|cpu # default auto: cuda if available, else cpu
---device 1                  # mic device index or name substring
---list-devices              # print available input devices
---no-tray                   # run without a tray icon
+--hotkey "ctrl+alt+space"       # any keyboard-lib combo
+--suppress-hotkey               # swallow it from the OS (needed for win+space)
+--language en                   # skip auto-detect (faster, more reliable on short clips)
+--device-mode auto|cuda|cpu|mlx # default auto: mlx (Apple Silicon) > cuda > cpu
+--model REPO_ID                 # override the default Whisper model id
+--device 1                      # mic device index or name substring
+--list-devices                  # print available input devices
+--no-tray                       # run without a tray icon
 --log-level DEBUG
 ```
 
@@ -71,13 +94,15 @@ python -m aptri_voice --hotkey "win+space" --suppress-hotkey
 |---|---|---|
 | Hotkey | `aptri_voice/hotkey.py` | WH_KEYBOARD_LL hook via `keyboard` lib; press-and-hold semantics with auto-repeat debounce. |
 | Audio capture | `aptri_voice/recorder.py` | `sounddevice` PortAudio stream at 16 kHz mono float32 (Whisper-native). 300 s safety cap. Resamples if device doesn't support 16 kHz. |
-| Transcription | `aptri_voice/transcriber.py` | HF `transformers` loading `openai/whisper-large-v3-turbo` directly. fp16 on GPU (sdpa attention), fp32 on CPU. Greedy decoding, no prev-token conditioning. Clips >30 s switch to sequential long-form decoding (`truncation=False`, `padding="longest"`, `return_attention_mask=True`, `return_timestamps=True`) so the feature extractor doesn't crop to a single 30 s window. |
+| Transcription | `aptri_voice/transcribers/` | Backend-agnostic Protocol with three implementations. `torch_hf.py` uses HF `transformers` with `openai/whisper-large-v3-turbo` (fp16 CUDA / fp32 CPU, sdpa attention, greedy, long-form via `truncation=False` + `return_timestamps=True`). `mlx.py` wraps `mlx_whisper.transcribe` against `mlx-community/whisper-large-v3-turbo` (fp16, numpy buffer in directly, long-form handled internally). `factory.py` does auto-selection: MLX on Apple Silicon, then CUDA, then CPU. |
 | Text injection | `aptri_voice/injector.py` | Win32 `SendInput` with `KEYEVENTF_UNICODE` for short text; clipboard-paste fallback (`Ctrl+V`) for long text, with original clipboard contents restored. Detects terminals (which use `Ctrl+Shift+V`) and falls through to SendInput. |
 | Orchestrator | `aptri_voice/app.py` | Hook callback only sets state and submits to a single-slot worker — never blocks (>300 ms blocks Windows silently disables the hook). |
 
 ## Pitfalls
 
 - **Python version**: must be 3.12 or 3.11 right now.
+- **MLX on macOS**: requires macOS 14+ on Apple Silicon and a native arm64 Python interpreter. A Rosetta/x86 Python will silently fail to find an `mlx-whisper` wheel. Verify with `python -c "import platform; print(platform.machine())"` → `arm64`.
+- **macOS hotkey/injector**: not yet implemented. Today aptri-voice runs end-to-end (transcription works) on macOS only if you wire your own input path — the bundled `hotkey.py`/`injector.py` are Windows-only.
 - **Elevated windows**: a non-elevated process cannot inject input into elevated apps (Task Manager, admin Terminal). Run elevated only if you accept that tradeoff.
 - **Antivirus / SmartScreen**: low-level keyboard hook + `SendInput` is the textbook keylogger fingerprint. Some AVs flag `keyboard` and PyInstaller bundles. Add an exclusion if needed.
 - **Clipboard restore is best-effort**: only `CF_UNICODETEXT` is preserved. Images/files/RTF on the clipboard at the time of a long-text injection are lost.

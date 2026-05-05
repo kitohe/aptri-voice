@@ -7,7 +7,7 @@ import sys
 
 from .app import App, run_with_tray
 from .recorder import Recorder
-from .transcriber import Transcriber
+from .transcribers import build_transcriber
 
 
 def _list_devices() -> None:
@@ -40,9 +40,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--device-mode",
-        choices=("auto", "cuda", "cpu"),
+        choices=("auto", "cuda", "cpu", "mlx"),
         default="auto",
-        help="Compute device for the model (default: auto).",
+        help="Compute backend (default: auto). 'mlx' is Apple Silicon only.",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="Override model id. Default: openai/whisper-large-v3-turbo "
+        "(torch) or mlx-community/whisper-large-v3-turbo (mlx).",
     )
     parser.add_argument("--no-tray", action="store_true", help="Don't show a tray icon.")
     parser.add_argument(
@@ -68,7 +74,11 @@ def main(argv: list[str] | None = None) -> int:
         except ValueError:
             pass  # leave as substring
 
-    transcriber = Transcriber(device=args.device_mode, language=args.language)
+    transcriber = build_transcriber(
+        device_mode=args.device_mode,
+        model_id=args.model,
+        language=args.language,
+    )
     app = App(
         transcriber=transcriber,
         hotkey_combo=args.hotkey,

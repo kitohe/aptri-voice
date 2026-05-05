@@ -4,19 +4,13 @@ from __future__ import annotations
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from typing import Protocol
-
-import numpy as np
 
 from .hotkey import HoldHotkey, HotkeyConfig
 from .injector import inject
 from .recorder import Recorder
+from .transcribers import TranscriberLike
 
 log = logging.getLogger("aptri_voice")
-
-
-class TranscriberLike(Protocol):
-    def transcribe(self, audio: np.ndarray, sample_rate: int = 16000) -> str: ...
 
 
 class App:

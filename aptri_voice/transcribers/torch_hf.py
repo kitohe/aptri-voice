@@ -1,4 +1,4 @@
-"""Whisper transcription via Hugging Face transformers.
+"""Whisper transcription via Hugging Face transformers + PyTorch.
 
 Loads `openai/whisper-large-v3-turbo` directly. Uses CUDA fp16 when available,
 falls back to CPU fp32. Designed for push-to-talk: model is loaded once,
@@ -61,7 +61,7 @@ def _pick_device_and_dtype(device: Optional[str]) -> tuple[str, "torch.dtype"]:
     raise ValueError(f"Unknown device: {device!r}")
 
 
-class Transcriber:
+class TorchHFTranscriber:
     """Push-to-talk Whisper transcriber backed by HF transformers."""
 
     def __init__(
@@ -163,4 +163,4 @@ class Transcriber:
         return text.strip()
 
 
-__all__ = ["Transcriber"]
+__all__ = ["TorchHFTranscriber", "DEFAULT_MODEL_ID"]
