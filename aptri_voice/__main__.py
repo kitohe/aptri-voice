@@ -15,17 +15,22 @@ def _list_devices() -> None:
         print(f"  [{d['index']:>2}] {d['name']}  (default {d['default_sr']} Hz)")
 
 
+_DEFAULT_HOTKEY = "cmd+option+space" if sys.platform == "darwin" else "ctrl+win"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aptri-voice")
     parser.add_argument(
         "--hotkey",
-        default="ctrl+win",
-        help='Hotkey combo (default: "ctrl+win"). Examples: "win+space", "right alt+space".',
+        default=_DEFAULT_HOTKEY,
+        help=f'Hotkey combo (default: "{_DEFAULT_HOTKEY}"). '
+        'Modifiers: ctrl, alt/option, shift, cmd/win. '
+        'Examples: "ctrl+alt+space", "cmd+option+space".',
     )
     parser.add_argument(
         "--suppress-hotkey",
         action="store_true",
-        help="Swallow the hotkey from the OS (needed if the combo is taken, e.g. win+space).",
+        help="Swallow the hotkey from the OS (Windows only; ignored on macOS).",
     )
     parser.add_argument(
         "--device",
