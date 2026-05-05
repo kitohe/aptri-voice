@@ -70,8 +70,8 @@ python -m aptri_voice --hotkey "win+space" --suppress-hotkey
 | Layer | Module | Notes |
 |---|---|---|
 | Hotkey | `aptri_voice/hotkey.py` | WH_KEYBOARD_LL hook via `keyboard` lib; press-and-hold semantics with auto-repeat debounce. |
-| Audio capture | `aptri_voice/recorder.py` | `sounddevice` PortAudio stream at 16 kHz mono float32 (Whisper-native). 60 s safety cap. Resamples if device doesn't support 16 kHz. |
-| Transcription | `aptri_voice/transcriber.py` | HF `transformers` loading `openai/whisper-large-v3-turbo` directly. fp16 on GPU (sdpa attention), fp32 on CPU. Greedy decoding, no prev-token conditioning, `return_timestamps=True` only for >30 s clips. |
+| Audio capture | `aptri_voice/recorder.py` | `sounddevice` PortAudio stream at 16 kHz mono float32 (Whisper-native). 300 s safety cap. Resamples if device doesn't support 16 kHz. |
+| Transcription | `aptri_voice/transcriber.py` | HF `transformers` loading `openai/whisper-large-v3-turbo` directly. fp16 on GPU (sdpa attention), fp32 on CPU. Greedy decoding, no prev-token conditioning. Clips >30 s switch to sequential long-form decoding (`truncation=False`, `padding="longest"`, `return_attention_mask=True`, `return_timestamps=True`) so the feature extractor doesn't crop to a single 30 s window. |
 | Text injection | `aptri_voice/injector.py` | Win32 `SendInput` with `KEYEVENTF_UNICODE` for short text; clipboard-paste fallback (`Ctrl+V`) for long text, with original clipboard contents restored. Detects terminals (which use `Ctrl+Shift+V`) and falls through to SendInput. |
 | Orchestrator | `aptri_voice/app.py` | Hook callback only sets state and submits to a single-slot worker — never blocks (>300 ms blocks Windows silently disables the hook). |
 

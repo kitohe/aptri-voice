@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 TARGET_SR = 16_000
 TARGET_DTYPE = "float32"
-MAX_DURATION_S = 60.0
+MAX_DURATION_S = 300.0
 MIN_DURATION_S = 0.30
 
 

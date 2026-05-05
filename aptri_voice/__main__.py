@@ -19,8 +19,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="aptri-voice")
     parser.add_argument(
         "--hotkey",
-        default="ctrl+alt+space",
-        help='Hotkey combo (default: "ctrl+alt+space"). Examples: "win+space", "right alt+space".',
+        default="ctrl+win",
+        help='Hotkey combo (default: "ctrl+win"). Examples: "win+space", "right alt+space".',
     )
     parser.add_argument(
         "--suppress-hotkey",

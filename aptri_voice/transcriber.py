@@ -39,7 +39,9 @@ DEFAULT_MODEL_ID = "openai/whisper-large-v3-turbo"
 
 # Whisper's hard cap is 448 tokens per 30s window; leave headroom for prompt tokens.
 _MAX_NEW_TOKENS = 440
-# transformers silently truncates >30s clips unless return_timestamps=True.
+# WhisperFeatureExtractor silently crops to 30s unless we also pass
+# truncation=False / padding="longest" / return_attention_mask=True AND set
+# return_timestamps=True on generate(). Both halves are needed for long-form.
 _LONG_FORM_THRESHOLD_S = 30.0
 
 
@@ -129,14 +131,19 @@ class Transcriber:
                 "Resample upstream before calling transcribe()."
             )
 
-        inputs = self.processor(
-            audio,
-            sampling_rate=sample_rate,
-            return_tensors="pt",
-        )
+        long_form = (audio.shape[0] / sample_rate) > _LONG_FORM_THRESHOLD_S
+
+        proc_kwargs: dict = {"sampling_rate": sample_rate, "return_tensors": "pt"}
+        if long_form:
+            # Without these the feature extractor crops to a single 30s window.
+            proc_kwargs.update(
+                truncation=False,
+                padding="longest",
+                return_attention_mask=True,
+            )
+        inputs = self.processor(audio, **proc_kwargs)
         feats = inputs.input_features.to(self.device, dtype=self.dtype)
 
-        long_form = (audio.shape[0] / sample_rate) > _LONG_FORM_THRESHOLD_S
         gen_kwargs: dict = {
             "max_new_tokens": _MAX_NEW_TOKENS,
             "num_beams": 1,
@@ -145,6 +152,8 @@ class Transcriber:
             "temperature": 0.0,
             "return_timestamps": long_form,
         }
+        if long_form:
+            gen_kwargs["attention_mask"] = inputs.attention_mask.to(self.device)
         if self.language:
             gen_kwargs["language"] = self.language
             gen_kwargs["task"] = "transcribe"
