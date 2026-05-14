@@ -1,26 +1,33 @@
 @echo off
 REM One-shot setup for aptri-voice on Windows.
-REM Requires Python 3.12 installed (3.14 is NOT supported - no CUDA wheels yet).
+REM Requires Python 3.11-3.14 installed.
 
 setlocal
 
 where py >nul 2>nul
 if errorlevel 1 (
-    echo [error] py launcher not found. Install Python 3.12 from python.org.
+    echo [error] py launcher not found. Install Python 3.11-3.14 from python.org.
     exit /b 1
 )
 
-py -3.12 --version >nul 2>nul
-if errorlevel 1 (
-    echo [error] Python 3.12 is required but was not found.
-    echo         Install it from https://www.python.org/downloads/release/python-3127/
+set PYTAG=
+for %%V in (3.14 3.13 3.12 3.11) do (
+    if not defined PYTAG (
+        py -%%V --version >nul 2>nul
+        if not errorlevel 1 set PYTAG=%%V
+    )
+)
+
+if not defined PYTAG (
+    echo [error] Python 3.11-3.14 is required but was not found.
+    echo         Install it from https://www.python.org/downloads/
     echo         then re-run this script.
     exit /b 1
 )
 
 if not exist .venv (
-    echo [setup] Creating venv with Python 3.12...
-    py -3.12 -m venv .venv
+    echo [setup] Creating venv with Python %PYTAG%...
+    py -%PYTAG% -m venv .venv
 )
 
 call .venv\Scripts\activate.bat

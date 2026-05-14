@@ -7,17 +7,16 @@
 set -euo pipefail
 
 if ! command -v python3 >/dev/null 2>&1; then
-    echo "[error] python3 not found. Install Python 3.11 or 3.12." >&2
+    echo "[error] python3 not found. Install Python 3.11-3.14." >&2
     exit 1
 fi
 
 PYBIN="${PYTHON:-python3}"
 PYVER=$("$PYBIN" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 case "$PYVER" in
-    3.11|3.12) ;;
+    3.11|3.12|3.13|3.14) ;;
     *)
-        echo "[error] Python 3.11 or 3.12 required (found $PYVER)." >&2
-        echo "        3.13+ is not supported (no torch + mlx wheels for it yet)." >&2
+        echo "[error] Python 3.11-3.14 required (found $PYVER)." >&2
         exit 1
         ;;
 esac

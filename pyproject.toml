@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "aptri-voice"
 version = "0.1.0"
 description = "Push-to-talk speech-to-text using Whisper large-v3-turbo (Windows + macOS Apple Silicon)."
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "torch>=2.4",
     "transformers>=4.45",

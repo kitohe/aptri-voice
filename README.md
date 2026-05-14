@@ -15,7 +15,7 @@ Hotkey + injection are platform-dispatched: Win32 LL hook + `SendInput` on Windo
 ## Requirements
 
 - Windows 10/11 **or** macOS 14+ on Apple Silicon (arm64). Linux is not currently supported for the hotkey/injector layer.
-- **Python 3.11 or 3.12.** 3.13/3.14 are not yet supported (no CUDA / MLX wheels).
+- **Python 3.11–3.14.**
 - Optional NVIDIA GPU with ≥6 GB VRAM (the transformers fp16 path uses ~3.5–5 GB at runtime). On Apple Silicon the MLX path uses ~2 GB unified memory and runs at 5–10× CPU PyTorch speed.
 - A working microphone.
 
@@ -27,7 +27,7 @@ Hotkey + injection are platform-dispatched: Win32 LL hook + `SendInput` on Windo
 setup.bat
 ```
 
-Creates `.venv` with Python 3.12, auto-detects an NVIDIA GPU (via `nvidia-smi`) and installs the matching PyTorch build (CUDA 12.4 / CPU), installs the rest, and pre-downloads `openai/whisper-large-v3-turbo` (~1.6 GB).
+Creates `.venv` with the newest installed Python 3.11–3.14, auto-detects an NVIDIA GPU (via `nvidia-smi`) and installs the matching PyTorch build (CUDA 12.4 / CPU), installs the rest, and pre-downloads `openai/whisper-large-v3-turbo` (~1.6 GB).
 
 ### macOS (Apple Silicon)
 
@@ -105,7 +105,7 @@ python -m aptri_voice --hotkey "win+space" --suppress-hotkey
 
 ## Pitfalls
 
-- **Python version**: must be 3.12 or 3.11 right now.
+- **Python version**: 3.11–3.14 are supported.
 - **MLX on macOS**: requires macOS 14+ on Apple Silicon and a native arm64 Python interpreter. A Rosetta/x86 Python will silently fail to find an `mlx-whisper` wheel. Verify with `python -c "import platform; print(platform.machine())"` → `arm64`.
 - **macOS Accessibility permission**: required for the global hotkey listener and for typed/pasted output to reach other apps. Without it, `pynput.Listener` runs silently with no events. macOS prompts on first launch; if you missed the prompt, add your terminal (or the venv's Python binary) under System Settings → Privacy & Security → Accessibility.
 - **macOS Secure Input**: when a password field is focused (login screens, 1Password, sudo in Terminal), macOS engages Secure Input and blocks all simulated keystrokes — pynput typing and Cmd+V will both no-op. Not fixable from userland.
