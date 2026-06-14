@@ -5,6 +5,7 @@ import argparse
 import logging
 import sys
 
+from ._single_instance import AlreadyRunning, SingleInstance
 from .app import App, run_with_tray
 from .recorder import Recorder
 from .transcribers import build_transcriber
@@ -94,6 +95,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.list_devices:
         _list_devices()
         return 0
+
+    # Refuse to start a second instance: two would both grab the hotkey and both
+    # type into the focused window, producing interleaved/duplicated output.
+    try:
+        _guard = SingleInstance()  # noqa: F841  held for the process lifetime
+    except AlreadyRunning as e:
+        logging.error("%s. Refusing to start a second instance.", e)
+        return 1
 
     device_arg: int | str | None = args.device
     if device_arg is not None:
