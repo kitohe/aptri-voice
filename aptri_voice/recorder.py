@@ -57,22 +57,30 @@ def resolve_input_device(spec: int | str | None) -> int | str | None:
     """
     if spec is None:
         return None
-    name = sd.query_devices(spec, "input")["name"]
-    twins = sum(
-        1 for d in sd.query_devices() if d["name"] == name and d["max_input_channels"] > 0
+    info = sd.query_devices(spec, "input")
+    hostapis = [h["name"] for h in sd.query_hostapis()]
+    inputs = [d for d in sd.query_devices() if d["max_input_channels"] > 0]
+
+    name = info["name"]
+    if sum(1 for d in inputs if d["name"] == name) == 1:
+        return name
+
+    # Windows exposes one microphone once per host API (MME, DirectSound, WASAPI,
+    # WDM-KS) under a single name, so a bare name identifies nothing there. macOS
+    # has only Core Audio and never hits this. sounddevice also matches
+    # "<name>, <host api>", which is unique per device.
+    qualified = f"{name}, {hostapis[info['hostapi']]}"
+    if sum(1 for d in inputs if f"{d['name']}, {hostapis[d['hostapi']]}" == qualified) == 1:
+        return qualified
+
+    # Two identical mics on one host API: the index is all that separates them.
+    log.warning(
+        "input device %r is ambiguous even with its host API; keeping index %r, which "
+        "may point elsewhere if devices change while the machine is asleep",
+        name,
+        spec,
     )
-    if twins != 1:
-        # Two mics sharing a name: the index is the only thing telling them apart,
-        # so keep it and accept that it may drift.
-        log.warning(
-            "input device name %r matches %d input devices; keeping index %r, which "
-            "may point elsewhere if devices change while the machine is asleep",
-            name,
-            twins,
-            spec,
-        )
-        return spec
-    return name
+    return spec
 
 
 @dataclass
