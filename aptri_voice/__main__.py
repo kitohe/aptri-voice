@@ -5,9 +5,11 @@ import argparse
 import logging
 import sys
 
+import sounddevice as sd
+
 from ._single_instance import AlreadyRunning, SingleInstance
 from .app import App, run_with_tray
-from .recorder import Recorder
+from .recorder import Recorder, resolve_input_device
 from .transcribers import build_transcriber
 
 
@@ -110,6 +112,16 @@ def main(argv: list[str] | None = None) -> int:
             device_arg = int(device_arg)
         except ValueError:
             pass  # leave as substring
+        # Resolve now, before the model load, so a bad --device is reported in
+        # under a second instead of on the first hotkey press.
+        try:
+            device_arg = resolve_input_device(device_arg)
+        except (ValueError, sd.PortAudioError) as e:
+            logging.error("--device %s: %s", args.device, e)
+            print("Available input devices:")
+            _list_devices()
+            return 1
+        logging.info("input device: %r", device_arg)
 
     transcriber = build_transcriber(
         device_mode=args.device_mode,
