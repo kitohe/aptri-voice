@@ -26,6 +26,12 @@ class RecordResult:
     too_short: bool
 
 
+def _reinit_portaudio() -> None:
+    """Force PortAudio to re-enumerate devices. No streams may be open."""
+    sd._terminate()
+    sd._initialize()
+
+
 class Recorder:
     """Streaming mic capture; start()/stop() returns a RecordResult."""
 
@@ -66,17 +72,33 @@ class Recorder:
                 return
             self._chunks = []
             self._frames_captured = 0
-            self._sample_rate = self._pick_sample_rate()
-            self._max_frames = int(MAX_DURATION_S * self._sample_rate)
-            self._stream = sd.InputStream(
-                samplerate=self._sample_rate,
-                channels=1,
-                dtype=TARGET_DTYPE,
-                device=self._device,
-                callback=self._callback,
-                blocksize=0,
-            )
-            self._stream.start()
+            try:
+                self._stream = self._open_stream()
+            except sd.PortAudioError as e:
+                # PortAudio snapshots the device list at init; after a dock
+                # unplug or sleep/wake the cached device IDs go stale and every
+                # open fails. Re-scan devices and retry once.
+                log.warning("failed to open input stream (%s); re-scanning audio devices", e)
+                _reinit_portaudio()
+                self._stream = self._open_stream()
+
+    def _open_stream(self) -> sd.InputStream:
+        self._sample_rate = self._pick_sample_rate()
+        self._max_frames = int(MAX_DURATION_S * self._sample_rate)
+        stream = sd.InputStream(
+            samplerate=self._sample_rate,
+            channels=1,
+            dtype=TARGET_DTYPE,
+            device=self._device,
+            callback=self._callback,
+            blocksize=0,
+        )
+        try:
+            stream.start()
+        except Exception:
+            stream.close()
+            raise
+        return stream
 
     def _callback(self, indata, frames, time_info, status) -> None:
         if status:
@@ -88,14 +110,15 @@ class Recorder:
         self._frames_captured += frames
 
     def stop(self) -> RecordResult:
+        # Close under the lock so a concurrent start() can't re-init PortAudio
+        # (which tears down all streams) while this one is still closing.
         with self._lock:
             stream = self._stream
             self._stream = None
-        if stream is None:
-            return RecordResult(np.zeros(0, dtype=np.float32), 0.0, True)
-
-        stream.stop()
-        stream.close()
+            if stream is None:
+                return RecordResult(np.zeros(0, dtype=np.float32), 0.0, True)
+            stream.stop()
+            stream.close()
 
         if not self._chunks:
             return RecordResult(np.zeros(0, dtype=np.float32), 0.0, True)
